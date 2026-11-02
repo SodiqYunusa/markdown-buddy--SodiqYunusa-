@@ -1,0 +1,175 @@
+---
+title: "Documentation: sales_summary.R"
+author: "Habeeb Ganiyu"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    toc: true
+    toc_depth: 2
+    theme: readable
+    highlight: tango
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
+```
+
+> **AI Assistance Declaration**: I used {tool} for {what}. Prompts used: {paste final prompts, or "see Appendix.md"}. I verified outputs using {methods}. All final calculations are done by myself. I am responsible for the accuracy and originality of this work.
+
+# Purpose
+
+`sales_summary.R` generates a synthetic retail sales dataset, summarizes total revenue by region, and exports the results as a CSV file and a bar chart. It uses synthetic data only, so no real or personal data is involved.
+
+# Inputs
+
+The script reads no external files. It builds its own data from the parameters below.
+
+| Parameter | Value |
+|-----------|-------|
+| Rows (`n`) | 500 |
+| Random seed | `set.seed(123)` |
+| Regions | North, South, East, West |
+| Categories | Electronics, Clothing, Home & Garden, Groceries |
+| Dates | Random days in 2025 |
+| Units per sale | Whole numbers from 1 to 20 |
+| Unit price | Uniform between 5 and 120, rounded to 2 decimals |
+
+## Required packages
+
+- `dplyr` 1.0.0 or later (the script uses `summarise(.groups = ...)`)
+- `ggplot2` (this also installs `scales`, which formats the chart axis)
+
+```{r install, eval=FALSE}
+install.packages(c("dplyr", "ggplot2"))
+```
+
+# Outputs
+
+| File | Description |
+|------|-------------|
+| `output/revenue_by_region.csv` | Total revenue per region, sorted descending, rounded to 2 decimals |
+| `output/revenue_by_region.png` | Bar chart of total revenue by region |
+
+The script also prints the summary table to the console and ends with `All checks passed.` if every verification check succeeds.
+
+# How the script works
+
+The script has six numbered sections. Each snippet below is shown for explanation only and is not re-run here.
+
+## 1. Setup
+
+Load the packages, fix the random seed so results are reproducible, and create the output folder.
+
+```{r setup-code, eval=FALSE}
+library(dplyr)
+library(ggplot2)
+
+set.seed(123)
+
+dir.create("output", showWarnings = FALSE)
+```
+
+## 2. Generate synthetic data
+
+Build a 500-row data frame by sampling each column, then add a `revenue` column (`units * unit_price`).
+
+```{r data-code, eval=FALSE}
+df <- data.frame(
+  date       = sample(seq(as.Date("2025-01-01"), as.Date("2025-12-31"), by = "day"),
+                      n, replace = TRUE),
+  region     = sample(regions, n, replace = TRUE),
+  category   = sample(categories, n, replace = TRUE),
+  units      = sample(1:20, n, replace = TRUE),
+  unit_price = round(runif(n, min = 5, max = 120), 2)
+) %>%
+  mutate(revenue = units * unit_price)
+```
+
+## 3. Summarize
+
+Group by region, total the revenue, round to 2 decimals, and sort from highest to lowest.
+
+```{r summarize-code, eval=FALSE}
+revenue_by_region <- df %>%
+  group_by(region) %>%
+  summarise(total_revenue = round(sum(revenue), 2), .groups = "drop") %>%
+  arrange(desc(total_revenue))
+```
+
+## 4. Export
+
+Write the summary table to CSV without row names.
+
+```{r export-code, eval=FALSE}
+write.csv(revenue_by_region, "output/revenue_by_region.csv", row.names = FALSE)
+```
+
+## 5. Visualize
+
+Draw a bar chart ordered by revenue, format the y-axis with commas, and save it as a PNG.
+
+```{r plot-code, eval=FALSE}
+p <- ggplot(revenue_by_region,
+            aes(x = reorder(region, -total_revenue), y = total_revenue)) +
+  geom_col(fill = "steelblue") +
+  scale_y_continuous(labels = scales::label_comma()) +
+  labs(title = "Total Revenue by Region", x = "Region", y = "Total Revenue") +
+  theme_minimal()
+
+ggsave("output/revenue_by_region.png", plot = p,
+       width = 7, height = 5, dpi = 150)
+```
+
+## 6. Verification checks
+
+The script stops with an error if any check fails.
+
+1. The data frame has exactly 500 rows.
+2. Each region's total is recomputed in base R and compared with the summary table.
+3. Both output files exist.
+
+```{r checks-code, eval=FALSE}
+stopifnot(nrow(df) == 500)
+
+for (r in regions) {
+  stopifnot(isTRUE(all.equal(
+    round(sum(df$revenue[df$region == r]), 2),
+    revenue_by_region$total_revenue[revenue_by_region$region == r]
+  )))
+}
+
+stopifnot(file.exists("output/revenue_by_region.csv"),
+          file.exists("output/revenue_by_region.png"))
+```
+
+# Example run
+
+This section runs the full script. Knit this file from the same folder as `sales_summary.R` so the relative paths work.
+
+```{r run-script}
+source("sales_summary.R")
+```
+
+## Result table
+
+```{r result-table}
+knitr::kable(
+  revenue_by_region,
+  format.args = list(big.mark = ","),
+  caption = "Total revenue by region (synthetic data)"
+)
+```
+
+## Result chart
+
+```{r result-chart, out.width="80%", fig.alt="Bar chart of total revenue by region, sorted from highest to lowest"}
+knitr::include_graphics("output/revenue_by_region.png")
+```
+
+# Reproducibility
+
+Because the script uses `set.seed(123)`, repeated runs produce the same data and the same CSV. To confirm, run the script twice and compare the checksums:
+
+```{r md5, eval=FALSE}
+tools::md5sum("output/revenue_by_region.csv")
+```
